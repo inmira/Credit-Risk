@@ -1,78 +1,136 @@
-# Credit-Risk
-Credit Risk Prediction Model
-# Project overview
+# Credit Card Default Prediction
 
-This project focuses on predicting credit default risk using machine learning models.
-The goal was to build a classification model that helps identify high-risk clients.
+## Project Overview
 
-# Dataset
+This project develops and evaluates machine learning models to predict credit card payment default using the **UCI Default of Credit Card Clients** dataset.
 
-UCI Default of Credit Card Clients dataset
-Contains financial and behavioral information about credit card clients.
+The analysis focuses on model comparison, class imbalance, threshold selection, and model interpretability. Four approaches are evaluated: Logistic Regression, Random Forest, Random Forest with SMOTE, and LightGBM.
 
-# Steps
+## Dataset
 
-Exploratory Data Analysis (EDA)
+- **Source:** [UCI Machine Learning Repository — Default of Credit Card Clients](https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients)
+- **Observations:** 30,000 clients
+- **Features:** 23 explanatory variables
+- **Target:** `DEFAULT` — 1 indicates default; 0 indicates no default
+- **Default rate:** 22.12%
 
-Handling imbalanced data using SMOTE
+The input variables describe credit limits, demographic information, repayment status, bill statements, and previous payment amounts.
 
-Model building:
+For readability, the original feature labels (`X1`–`X23`) are mapped to descriptive names such as `LIMIT_BAL`, `PAY_0`, `BILL_AMT1`, and `PAY_AMT1`.
 
-Logistic Regression
+## Methodology
 
-Random Forest
+### Data preparation
+- Loaded the dataset from the UCI repository.
+- Renamed the explanatory variables using the dataset documentation.
+- Checked target distribution and missing values.
+- Used a stratified 80/20 train–test split.
 
-Model evaluation (ROC-AUC, confusion matrix)
+### Models
+1. Logistic Regression
+2. Random Forest
+3. Random Forest with SMOTE
+4. LightGBM
 
-Model interpretability using SHAP
+Median imputation is included in the model pipelines. Logistic Regression additionally uses `StandardScaler`.
 
-# Results
+### Validation and class imbalance
+- Applied 5-fold `StratifiedKFold` cross-validation on the training set.
+- Generated out-of-fold (OOF) probabilities for model comparison and threshold selection.
+- Integrated SMOTE into an `imblearn` pipeline, so oversampling is performed only on the training portion of each cross-validation fold.
+- Selected an F1-based classification threshold using OOF training predictions. The test set was not used for threshold selection.
+- Evaluated the final fitted models on the untouched test set.
 
-ROC-AUC ≈ 0.75
+### Evaluation metrics
+ROC-AUC and Average Precision evaluate probability ranking. Precision, recall, and F1 evaluate classification performance at a selected threshold. Recall for class 1 is particularly relevant when assessing how many default cases are identified.
 
-Improved default detection after SMOTE
+## Model Performance
 
-Key risk factors:
+### Cross-validation results
 
-repayment history
+Out-of-fold results on the training data:
 
-credit limit
+| Model | OOF ROC-AUC | OOF Average Precision |
+|---|---:|---:|
+| LightGBM | **0.7816** | **0.5574** |
+| Random Forest | 0.7742 | 0.5502 |
+| Random Forest + SMOTE | 0.7733 | 0.5431 |
+| Logistic Regression | 0.7259 | 0.5042 |
 
-previous payment amounts
+LightGBM achieved the highest OOF ROC-AUC and Average Precision among the evaluated models.
 
- # Business value
+### Test-set results
 
-The model can support:
+The following metrics use each model's threshold selected from OOF training predictions:
 
-credit approval decisions
+| Model | Threshold | ROC-AUC | Average Precision | Precision (default) | Recall (default) | F1 (default) |
+|---|---:|---:|---:|---:|---:|---:|
+| LightGBM | 0.3084 | **0.7780** | **0.5512** | 0.5353 | **0.5365** | **0.5359** |
+| Random Forest + SMOTE | 0.3788 | 0.7652 | 0.5433 | 0.5279 | 0.5275 | 0.5277 |
+| Random Forest | 0.3448 | 0.7641 | 0.5461 | **0.5498** | 0.5079 | 0.5280 |
+| Logistic Regression | 0.2864 | 0.7076 | 0.4939 | 0.5319 | 0.4770 | 0.5030 |
 
-risk segmentation
+LightGBM had the strongest test ROC-AUC, Average Precision, recall, and F1 among these models at their selected thresholds. Random Forest had the highest default-class precision.
 
-early warning systems
+### Random Forest and SMOTE at the default threshold
 
-Variable Name	Role	Type	Demographic	Description	Units	Missing Values
-ID	ID	Integer				no
-X1	Feature	Integer		LIMIT_BAL		no
-X2	Feature	Integer	Sex	SEX		no
-X3	Feature	Integer	Education Level	EDUCATION		no
-X4	Feature	Integer	Marital Status	MARRIAGE		no
-X5	Feature	Integer	Age	AGE		no
-X6	Feature	Integer		PAY_0		no
-X7	Feature	Integer		PAY_2		no
-X8	Feature	Integer		PAY_3		no
-X9	Feature	Integer		PAY_4		no
-X10	Feature	Integer		PAY_5		no
-X11	Feature	Integer		PAY_6		no
-X12	Feature	Integer		BILL_AMT1		no
-X13	Feature	Integer		BILL_AMT2		no
-X14	Feature	Integer		BILL_AMT3		no
-X15	Feature	Integer		BILL_AMT4		no
-X16	Feature	Integer		BILL_AMT5		no
-X17	Feature	Integer		BILL_AMT6		no
-X18	Feature	Integer		PAY_AMT1		no
-X19	Feature	Integer		PAY_AMT2		no
-X20	Feature	Integer		PAY_AMT3		no
-X21	Feature	Integer		PAY_AMT4		no
-X22	Feature	Integer		PAY_AMT5		no
-X23	Feature	Integer		PAY_AMT6		no
-Y	Target	Binary		default payment next month
+To separate the effect of resampling from threshold selection, Random Forest models were also compared at a fixed threshold of 0.50:
+
+| Model | ROC-AUC | Precision (default) | Recall (default) | F1 (default) |
+|---|---:|---:|---:|---:|
+| Random Forest | 0.7641 | **0.6536** | 0.3640 | 0.4676 |
+| Random Forest + SMOTE | 0.7652 | 0.6151 | **0.4107** | **0.4925** |
+
+At the 0.50 threshold, SMOTE increased default recall from **0.3640 to 0.4107**, while precision decreased from **0.6536 to 0.6151**. In this run, ROC-AUC changed only slightly, from 0.7641 to 0.7652.
+
+This result illustrates the trade-off between identifying more default cases and generating more false positive predictions. SMOTE should therefore not be described as an unconditional improvement.
+
+## Model Interpretation
+
+Feature importance was examined for the LightGBM model, selected as the best tree-based model by OOF ROC-AUC.
+
+The highest-ranked features by LightGBM split importance included:
+
+1. `BILL_AMT1`
+2. `PAY_AMT3`
+3. `LIMIT_BAL`
+4. `AGE`
+5. `PAY_AMT5`
+6. `PAY_AMT1`
+7. `PAY_AMT2`
+8. `PAY_AMT6`
+9. `BILL_AMT2`
+10. `PAY_AMT4`
+
+SHAP `TreeExplainer` was used to examine feature contributions for a sample of test observations. The notebook includes a SHAP summary plot with descriptive feature names.
+
+Feature importance and SHAP values describe how the fitted model uses the input variables; they do not establish causal relationships.
+
+## Key Findings
+
+- **LightGBM performed best overall** in this experiment, achieving a test ROC-AUC of 0.7780 and Average Precision of 0.5512.
+- **Threshold selection matters.** A threshold below 0.50 was selected for every model when maximizing F1 on OOF training predictions.
+- **SMOTE changed the precision–recall balance.** At a fixed threshold of 0.50, it increased recall for defaults but reduced precision.
+- **Random Forest and LightGBM outperformed Logistic Regression** in ROC-AUC on both the OOF training predictions and the held-out test set.
+- **Repayment and bill-related variables** were prominent in the LightGBM feature-importance ranking.
+
+## Repository Contents
+
+- `UCI_Credit_Card_Default_Prediction.ipynb` — complete analysis, model training, evaluation, and interpretation.
+- `requirements.txt` — Python dependencies.
+
+## How to Run
+
+The notebook can be opened in [Google Colab](https://colab.research.google.com/) or Jupyter Notebook.
+
+1. Open the `.ipynb` file.
+2. Run the installation cell.
+3. Run the notebook cells from top to bottom.
+
+The dataset is fetched directly from the UCI Machine Learning Repository.
+
+## Tools and Libraries
+
+Python · pandas · NumPy · scikit-learn · imbalanced-learn · LightGBM · SHAP · Matplotlib
+
+
